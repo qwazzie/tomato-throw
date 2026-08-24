@@ -2,8 +2,14 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
+  <!-- Вьюпорт для правильного масштаба на смартфонах -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Кидатель помидоров</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       height: 100vh;
@@ -14,22 +20,29 @@
       justify-content: center;
       align-items: center;
       font-family: sans-serif;
+      touch-action: manipulation; /* Убирает задержку клика на тачскрине */
     }
 
+    /* Адаптированная панель управления */
     #controls {
       position: fixed;
-      top: 15px;
-      left: 15px;
+      top: 10px;
+      left: 10px;
+      right: 10px;
       z-index: 1000;
-      background: rgba(0, 0, 0, 0.75);
-      padding: 12px 18px;
-      border-radius: 10px;
-      backdrop-filter: blur(8px);
+      background: rgba(0, 0, 0, 0.85);
+      padding: 10px 14px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 15px;
+      justify-content: space-between;
+      gap: 10px;
       color: white;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      max-width: 500px;
+      margin: 0 auto;
     }
 
     input[type="file"] { display: none; }
@@ -37,13 +50,14 @@
     .btn {
       color: white;
       background: #ff4757;
-      padding: 8px 14px;
+      padding: 8px 12px;
       border-radius: 6px;
       cursor: pointer;
       font-weight: bold;
       border: none;
-      font-size: 14px;
+      font-size: 13px;
       transition: background 0.2s;
+      user-select: none;
     }
 
     .btn:hover { background: #ff6b81; }
@@ -53,27 +67,29 @@
     .slider-group {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 14px;
+      gap: 6px;
+      font-size: 13px;
     }
 
     input[type="range"] {
       cursor: pointer;
       accent-color: #ff4757;
+      width: 100px;
     }
 
+    /* Мишень */
     #target-img {
-      max-width: 90vw;
-      max-height: 85vh;
+      max-width: 95vw;
+      max-height: 80vh;
       object-fit: contain;
       pointer-events: none;
       user-select: none;
     }
 
-    /* Зафиксировали идеальное смещение 5% (-45% вместо -50%) */
+    /* Помидоры */
     .tomato {
       position: absolute;
-      transform: translate(-50%, -45%);
+      transform: translate(-50%, -45%); /* Твоё проверенное смещение 5% */
       pointer-events: none;
       user-select: none;
       width: auto;
@@ -85,21 +101,21 @@
   <div id="controls">
     <label for="file-input" class="btn">Выбрать мишень</label>
     <input type="file" id="file-input" accept="image/*">
-
+    
     <div class="slider-group">
       <label for="size-slider">Размер:</label>
-      <input type="range" id="size-slider" min="30" max="6000" value="300">
-      <span id="size-val">300px</span>
+      <input type="range" id="size-slider" min="30" max="1000" value="200">
+      <span id="size-val">200px</span>
     </div>
 
-    <button id="clear-btn" class="btn btn-clear">Очистить</button>
+    <button id="clear-btn" class="btn btn-clear">Смыть</button>
   </div>
 
-  <img id="target-img" alt="Загрузи изображение мишени">
+  <img id="target-img" alt="Загрузи мишень">
 
 <script>
-  const APNG_FILE = 'tomato.png';
-  const SOUND_FILE = 'splat.mp3';
+  const APNG_FILE = 'tomato.png'; 
+  const SOUND_FILE = 'splat.mp3'; 
 
   const fileInput = document.getElementById('file-input');
   const targetImg = document.getElementById('target-img');
@@ -126,13 +142,15 @@
     document.querySelectorAll('.tomato').forEach(el => el.remove());
   });
 
-  window.addEventListener('click', (e) => {
+  // Работает и по тапу на мобилках, и по клику мыши
+  window.addEventListener('pointerdown', (e) => {
+    // Игнорируем нажатия по меню
     if (e.target.closest('#controls')) return;
 
     const img = document.createElement('img');
     img.src = `${APNG_FILE}?t=${Date.now()}`;
     img.className = 'tomato';
-
+    
     const currentSize = parseFloat(sizeSlider.value);
     img.style.height = `${currentSize}px`;
 
