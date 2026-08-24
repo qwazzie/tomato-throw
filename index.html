@@ -2,7 +2,6 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <!-- Вьюпорт для правильного масштаба на смартфонах -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Кидатель помидоров</title>
   <style>
@@ -15,15 +14,14 @@
       height: 100vh;
       overflow: hidden;
       background: #1a1a1a;
-      cursor: crosshair;
       display: flex;
       justify-content: center;
       align-items: center;
       font-family: sans-serif;
-      touch-action: manipulation; /* Убирает задержку клика на тачскрине */
+      touch-action: none; /* Предотвращаем стандартные жесты браузера */
     }
 
-    /* Адаптированная панель управления */
+    /* Панель управления */
     #controls {
       position: fixed;
       top: 10px;
@@ -41,8 +39,37 @@
       gap: 10px;
       color: white;
       box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-      max-width: 500px;
+      max-width: 550px;
       margin: 0 auto;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    /* Скрытие панели */
+    #controls.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-100px);
+    }
+
+    /* Кнопка скрыть/показать меню */
+    #toggle-menu-btn {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 1001;
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(5px);
+      user-select: none;
     }
 
     input[type="file"] { display: none; }
@@ -63,6 +90,14 @@
     .btn:hover { background: #ff6b81; }
     .btn-clear { background: #57606f; }
     .btn-clear:hover { background: #747d8c; }
+    
+    .btn-mode {
+      background: #2ed573;
+    }
+    .btn-mode:hover { background: #26af5f; }
+    .btn-mode.pan-active {
+      background: #ffa502;
+    }
 
     .slider-group {
       display: flex;
@@ -74,11 +109,34 @@
     input[type="range"] {
       cursor: pointer;
       accent-color: #ff4757;
-      width: 200px;
+      width: 120px;
+    }
+
+    /* Контейнер для перемещаемой сцены */
+    #stage {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      transform-origin: 0 0;
+      cursor: crosshair;
+    }
+
+    #stage.pan-mode {
+      cursor: grab;
+    }
+
+    #stage.pan-mode:active {
+      cursor: grabbing;
     }
 
     /* Мишень */
     #target-img {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       max-width: 95vw;
       max-height: 80vh;
       object-fit: contain;
@@ -89,7 +147,7 @@
     /* Помидоры */
     .tomato {
       position: absolute;
-      transform: translate(-50%, -45%); /* Твоё проверенное смещение 5% */
+      transform: translate(-50%, -45%);
       pointer-events: none;
       user-select: none;
       width: auto;
@@ -98,35 +156,54 @@
 </head>
 <body>
 
+  <!-- Кнопка скрыть / показать меню -->
+  <button id="toggle-menu-btn" title="Скрыть/показать панель">👁️</button>
+
   <div id="controls">
+    <button id="mode-btn" class="btn btn-mode">Режим: 🍅 Кидать</button>
+
     <label for="file-input" class="btn">Выбрать мишень</label>
     <input type="file" id="file-input" accept="image/*">
     
     <div class="slider-group">
       <label for="size-slider">Размер:</label>
-      <input type="range" id="size-slider" min="30" max="6000" value="200">
-      <span id="size-val">200px</span>
+      <input type="range" id="size-slider" min="30" max="3000" value="300">
+      <span id="size-val">300px</span>
     </div>
 
     <button id="clear-btn" class="btn btn-clear">Смыть</button>
   </div>
 
-  <img id="target-img" alt="Загрузи мишень">
+  <!-- Вся сцена с мишенью и пятнами -->
+  <div id="stage">
+    <img id="target-img" alt="Загрузи мишень">
+  </div>
 
 <script>
   const APNG_FILE = 'tomato.png'; 
   const SOUND_FILE = 'splat.mp3'; 
 
+  const stage = document.getElementById('stage');
+  const controls = document.getElementById('controls');
+  const toggleMenuBtn = document.getElementById('toggle-menu-btn');
+  const modeBtn = document.getElementById('mode-btn');
   const fileInput = document.getElementById('file-input');
   const targetImg = document.getElementById('target-img');
   const sizeSlider = document.getElementById('size-slider');
   const sizeVal = document.getElementById('size-val');
   const clearBtn = document.getElementById('clear-btn');
 
+  let isPanMode = false;
+  let isDragging = false;
+  let startX = 0, startY = 0;
+  let translateX = 0, translateY = 0;
+
+  // Переключение размера
   sizeSlider.addEventListener('input', (e) => {
     sizeVal.textContent = `${e.target.value}px`;
   });
 
+  // Загрузка мишени
   fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -138,33 +215,88 @@
     }
   });
 
+  // Очистка помидоров
   clearBtn.addEventListener('click', () => {
     document.querySelectorAll('.tomato').forEach(el => el.remove());
   });
 
-  // Работает и по тапу на мобилках, и по клику мыши
-  window.addEventListener('pointerdown', (e) => {
-    // Игнорируем нажатия по меню
-    if (e.target.closest('#controls')) return;
-
-    const img = document.createElement('img');
-    img.src = `${APNG_FILE}?t=${Date.now()}`;
-    img.className = 'tomato';
-    
-    const currentSize = parseFloat(sizeSlider.value);
-    img.style.height = `${currentSize}px`;
-
-    img.style.left = `${e.clientX}px`;
-    img.style.top = `${e.clientY}px`;
-
-    if (SOUND_FILE) {
-      const audio = new Audio(SOUND_FILE);
-      audio.volume = 0.8;
-      audio.play().catch(() => {});
-    }
-
-    document.body.appendChild(img);
+  // Скрытие / показ меню
+  toggleMenuBtn.addEventListener('click', () => {
+    controls.classList.toggle('hidden');
+    toggleMenuBtn.textContent = controls.classList.contains('hidden') ? '⚙️' : '👁️';
   });
+
+  // Переключение режима (Кидать / Двигать)
+  modeBtn.addEventListener('click', () => {
+    isPanMode = !isPanMode;
+    if (isPanMode) {
+      modeBtn.textContent = 'Режим: ✋ Камера';
+      modeBtn.classList.add('pan-active');
+      stage.classList.add('pan-mode');
+    } else {
+      modeBtn.textContent = 'Режим: 🍅 Кидать';
+      modeBtn.classList.remove('pan-active');
+      stage.classList.remove('pan-mode');
+    }
+  });
+
+  function updateTransform() {
+    stage.style.transform = `translate(${translateX}px, ${translateY}px)`;
+  }
+
+  // Обработка нажатий на сцене
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('#controls') || e.target.closest('#toggle-menu-btn')) return;
+
+    if (isPanMode) {
+      // Режим панорамирования (движения камеры)
+      isDragging = true;
+      startX = e.clientX - translateX;
+      startY = e.clientY - translateY;
+      stage.setPointerCapture(e.pointerId);
+    } else {
+      // Режим броска помидора
+      const rect = stage.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      const img = document.createElement('img');
+      img.src = `${APNG_FILE}?t=${Date.now()}`;
+      img.className = 'tomato';
+      
+      const currentSize = parseFloat(sizeSlider.value);
+      img.style.height = `${currentSize}px`;
+
+      img.style.left = `${clickX}px`;
+      img.style.top = `${clickY}px`;
+
+      if (SOUND_FILE) {
+        const audio = new Audio(SOUND_FILE);
+        audio.volume = 0.8;
+        audio.play().catch(() => {});
+      }
+
+      stage.appendChild(img);
+    }
+  });
+
+  stage.addEventListener('pointermove', (e) => {
+    if (isDragging && isPanMode) {
+      translateX = e.clientX - startX;
+      translateY = e.clientY - startY;
+      updateTransform();
+    }
+  });
+
+  const stopDrag = (e) => {
+    if (isDragging) {
+      isDragging = false;
+      try { stage.releasePointerCapture(e.pointerId); } catch(err){}
+    }
+  };
+
+  stage.addEventListener('pointerup', stopDrag);
+  stage.addEventListener('pointercancel', stopDrag);
 </script>
 
 </body>
