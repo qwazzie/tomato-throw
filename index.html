@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Кидатель помидоров</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: #1a1a1a;
+      cursor: crosshair;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: sans-serif;
+    }
+
+    #controls {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 12px 18px;
+      border-radius: 10px;
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      color: white;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+
+    input[type="file"] { display: none; }
+
+    .btn {
+      color: white;
+      background: #ff4757;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      border: none;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .btn:hover { background: #ff6b81; }
+    .btn-clear { background: #57606f; }
+    .btn-clear:hover { background: #747d8c; }
+
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    input[type="range"] {
+      cursor: pointer;
+      accent-color: #ff4757;
+    }
+
+    #target-img {
+      max-width: 90vw;
+      max-height: 85vh;
+      object-fit: contain;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* Зафиксировали идеальное смещение 5% (-45% вместо -50%) */
+    .tomato {
+      position: absolute;
+      transform: translate(-50%, -45%);
+      pointer-events: none;
+      user-select: none;
+      width: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="controls">
+    <label for="file-input" class="btn">Выбрать мишень</label>
+    <input type="file" id="file-input" accept="image/*">
+
+    <div class="slider-group">
+      <label for="size-slider">Размер:</label>
+      <input type="range" id="size-slider" min="30" max="6000" value="300">
+      <span id="size-val">300px</span>
+    </div>
+
+    <button id="clear-btn" class="btn btn-clear">Очистить</button>
+  </div>
+
+  <img id="target-img" alt="Загрузи изображение мишени">
+
+<script>
+  const APNG_FILE = 'tomato.png';
+  const SOUND_FILE = 'splat.mp3';
+
+  const fileInput = document.getElementById('file-input');
+  const targetImg = document.getElementById('target-img');
+  const sizeSlider = document.getElementById('size-slider');
+  const sizeVal = document.getElementById('size-val');
+  const clearBtn = document.getElementById('clear-btn');
+
+  sizeSlider.addEventListener('input', (e) => {
+    sizeVal.textContent = `${e.target.value}px`;
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        targetImg.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    document.querySelectorAll('.tomato').forEach(el => el.remove());
+  });
+
+  window.addEventListener('click', (e) => {
+    if (e.target.closest('#controls')) return;
+
+    const img = document.createElement('img');
+    img.src = `${APNG_FILE}?t=${Date.now()}`;
+    img.className = 'tomato';
+
+    const currentSize = parseFloat(sizeSlider.value);
+    img.style.height = `${currentSize}px`;
+
+    img.style.left = `${e.clientX}px`;
+    img.style.top = `${e.clientY}px`;
+
+    if (SOUND_FILE) {
+      const audio = new Audio(SOUND_FILE);
+      audio.volume = 0.8;
+      audio.play().catch(() => {});
+    }
+
+    document.body.appendChild(img);
+  });
+</script>
+
+</body>
+</html>
